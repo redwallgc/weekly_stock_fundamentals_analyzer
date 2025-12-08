@@ -184,41 +184,46 @@ if uploaded_file is not None:
     # Read the uploaded file into a string
     string_data = uploaded_file.getvalue().decode('utf-8')
     
-    # Use pandas to read the CSV content
-    df = pd.read_csv(io.StringIO(string_data))
+    # --- FIX APPLIED HERE ---
+    # Force pandas to read the file with NO HEADER (header=None) so all rows are data.
+    # We then rename the single column to 'Ticker'.
+    df = pd.read_csv(io.StringIO(string_data), header=None, names=['Ticker'])
+    # --- END FIX ---
     
     if df.empty:
         st.error("The uploaded CSV file is empty. Please check the content.")
     else:
-        # Extract, strip, and uppercase the tickers from the first column
-        ticker_list = df.iloc[:, 0].astype(str).str.strip().str.upper().tolist()
+        # Extract, strip, and uppercase the tickers from the first column (now correctly named 'Ticker')
+        ticker_list = df['Ticker'].astype(str).str.strip().str.upper().tolist()
         
         # Filter out any non-ticker values or blanks
         valid_tickers = [t for t in ticker_list if len(t) > 0 and not t.isdigit()]
         
-        st.success(f"✅ Successfully loaded {len(valid_tickers)} tickers. Running analysis...")
-        
-        # Run the analysis function
-        final_report_df = run_analysis(valid_tickers)
-        
-        st.header("📈 Analysis Results (Ranked by Score)")
-        st.caption("Use the download button below to get the raw data for your Master Template.")
-        
-        # Display the DataFrame in Streamlit
-        st.dataframe(final_report_df, use_container_width=True)
-        
-        # --- Download Button (Replaces downloading from Colab's file panel) ---
-        
-        @st.cache_data
-        def convert_df_to_csv(df):
-            # IMPORTANT: We convert to CSV format for download
-            return df.to_csv(index=False).encode('utf-8')
+        if not valid_tickers:
+            st.error("The file contains no valid stock tickers. Please ensure the column has tickers.")
+        else:
+            st.success(f"✅ Successfully loaded {len(valid_tickers)} tickers. Running analysis...")
+            
+            # Run the analysis function
+            final_report_df = run_analysis(valid_tickers)
+            
+            st.header("📈 Analysis Results (Ranked by Score)")
+            st.caption("Use the download button below to get the raw data for your Master Template.")
+            
+            # Display the DataFrame in Streamlit
+            st.dataframe(final_report_df, use_container_width=True)
+            
+            # --- Download Button (Replaces downloading from Colab's file panel) ---
+            
+            @st.cache_data
+            def convert_df_to_csv(df):
+                return df.to_csv(index=False).encode('utf-8')
 
-        csv = convert_df_to_csv(final_report_df)
+            csv = convert_df_to_csv(final_report_df)
 
-        st.download_button(
-            label="⬇️ Download Raw Data CSV",
-            data=csv,
-            file_name=f'Weekly_Analysis_Report_{pd.Timestamp.now().strftime("%Y%m%d")}.csv',
-            mime='text/csv',
-        )
+            st.download_button(
+                label="⬇️ Download Raw Data CSV",
+                data=csv,
+                file_name=f'Weekly_Analysis_Report_{pd.Timestamp.now().strftime("%Y%m%d")}.csv',
+                mime='text/csv',
+            )
